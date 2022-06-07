@@ -1,0 +1,290 @@
+---
+title: "Minimum example-LANDFIRE data processing"
+author: "Randy Swaty (actually Myles Walimaa)"
+date: '2022-06-07'
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+
+## Background
+Due to increasingly rapid updates, need to be reproducible, desire/need to work with open-sourced tools and for the sheer fun of it we want to use R and QGIS for LANDFIRE data processing, mapping and summarization (at the least).  Recently a [Conservation Data Lab](https://conservationdatalab.org/) alumni, Myles Walimaa wrote an R script that would:
+
+1. read in and reproject a shapefile
+2. read in, mask and crop several LANDFIRE datasets (downloaded and saved as ESRI grids)
+3. build attribute tables, and summary charts
+4. write rasters
+
+Subsequently, Randy Swaty added code that would:
+
+1. make rasters readable in ArcGIS and QGIS
+2. build color files for easy legend building in QGIS
+3. added a few new datasets that could be read in (e.g., fuels)
+4. added a couple new charts
+
+The code Myles wrote was the backbone of assessments such as [this one](https://rswaty.github.io/deerCreekOut/deerCreekAssessment.html) completed for the Deer Creek watershed in West Virginia and for [these slides](https://rswaty.github.io/HiawathaNF2022/presentationMay2022.html#1) of Hiawatha National Forest.
+
+While **the code is super useful** as is there is a need to review and refresh it.  Why?
+
+* the code works with ESRI grids which are no longer delivered by LANDFIRE.  We need to test and insure it works with geotiffs
+* need to update packages, e.g. "raster" to "terra" and test
+* the code is verbose.  Could be made into functions
+* Randy has been sloppy and has not compiled all code into one "master file".  It's time to do that.
+
+PLUS there is an opportunity to take the code further, for example:
+
+* could make a package
+* add landscape metrics
+* make maps in R so we don't have to in QGIS or ArcGIS pro
+* turn this in to an R/GIS/raster training tool
+
+
+## Some code examples
+
+Here I'll share some sample code to get us started.
+
+
+### Packages and reading in data
+
+
+```{r libraries, message=FALSE, warning=FALSE, include=FALSE}
+# you will likely need to install many of these like:
+# install.packages("tmap")
+
+library(tidyverse)
+library(sf)
+library(raster)
+library(foreign)
+library(tmap)
+library(htmlwidgets)
+
+```
+
+
+
+```{r read shape, message=FALSE, warning=FALSE, include=FALSE}
+shp <- st_read("./DATA/deerCreek.shp") %>% 
+  st_transform(crs = "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs") %>%
+  st_union() %>%
+  st_sf()
+```
+
+
+
+```{r locator map, echo=FALSE, message=FALSE, warning=FALSE}
+library(tmap)
+
+# toggle tmap mode to interactive viewing
+tmap_mode("view")
+
+# create a quick interactive map
+quickmap <- qtm(shp, borders = "darkgreen",
+                fill = NULL)
+
+quickmap
+
+# save the map
+# due to a bug in tmap, we need to change the working directory to OUTPUTS folder
+# then switch it back when we are done saving
+old.wd <- getwd()
+setwd(paste0(getwd(), "/OUTPUTS"))
+tmap_save(tm = quickmap, filename = "aoi_reference_map.html")
+setwd(old.wd)
+```
+
+### Processing, charting and writing BpS, EVT and SCLASS data
+
+This is older code for ESRI grids.  
+
+## BpS
+
+
+```{r bps spatial, message=FALSE, warning=FALSE, include=FALSE}
+# process BpS 
+    bps <- raster("./DATA/US_200BPS/us_200bps/hdr.adf") %>%
+      crop(shp) %>%
+      mask(shp)
+    writeRaster(bps, 
+                "./OUTPUTS/bps_aoi_crop.tif", 
+                overwrite = T, 
+                format="GTiff", 
+                options=c('TFW=YES'), 
+                datatype = "INT2S")
+    
+
+
+    bps_x <- bps %>%
+      raster::extract(shp) %>%
+      unlist() %>%
+      table(dnn = "ID") %>%
+      as.data.frame() %>%
+      arrange(desc(Freq)) %>%
+      mutate_all(as.character) %>%
+      mutate_all(as.integer) %>%
+      left_join(levels(bps)[[1]], by = "ID") %>%
+      transmute(VALUE = ID,
+                COUNT = Freq,
+                BPS_NAME = BPS_NAME %>%
+                  as.character() %>%
+                  as.factor(),
+                # GROUPNAME = GROUPNAME %>%
+                #   as.character() %>%
+                #   as.factor(),
+                GROUPVEG = GROUPVEG,
+                acres = (Freq * 900 / 4046.86),
+                hectare = (Freq * 900 / 10000),
+                rel_percent = (Freq / sum(Freq)) * 100,
+                RED = RED,
+                GREEN = GREEN,
+                BLUE = BLUE,
+                R = R,
+                G = G,
+                B = B)
+## write csv for fun, .dbf for use in ArcGIS
+    write.csv(bps_x, "./OUTPUTS/bps_aoi_attributes.csv")
+    write.dbf(bps_x, "./OUTPUTS/bps_aoi_crop.tif.vat.dbf")
+    
+## BpS color file for use in QGIS
+    BpSColorFile <- bps_x %>%
+      add_column(z = 255) %>%
+      dplyr::select(VALUE,
+             R,
+             G,
+             B,
+             z,
+             BPS_NAME) 
+    write.table(BpSColorFile, file = "./OUTPUTS/BpSColorFile.txt", sep = ",",
+                row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+```
+
+
+
+```{r bps bar, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10}
+# read bps attribute table .csv and summarize
+bpsname <- read.csv(file = "./OUTPUTS/bps_aoi_attributes.csv") %>%
+  group_by(BPS_NAME) %>%
+  summarize(acres = sum(acres),
+            hectare = sum(hectare),
+            rel_percent = sum(rel_percent)) %>%
+  arrange(desc(rel_percent)) %>%
+  top_n(n = 10, wt = rel_percent)
+
+# plot
+bpsChart <- 
+  ggplot(data = bpsname, aes(x = BPS_NAME, y = rel_percent)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Top 10 Biophysical Settings for Hiawatha National Forest",
+    subtitle = "Represents dominant vegetation systems pre-European colonization",
+    caption = "Represents ~95% of the landscape. \nData from landfire.gov.",
+    x = "",
+    y = "Percent of landscape") +
+  scale_x_discrete(limits = rev(bpsname$BPS_NAME)) +
+  coord_flip() +
+  theme_bw(base_size = 14)
+
+bpsChart
+
+# if the plot looks good, save it
+ggsave("./graphics/bpsChart.png", width = 12, height = 7)
+```
+
+
+
+## EVT
+
+
+```{r evt spatial, message=FALSE, warning=FALSE, include=FALSE}
+# EVT
+    evt <- raster("./DATA/US_200EVT/us_200evt/hdr.adf") %>%
+      crop(shp) %>%
+      mask(shp)
+    writeRaster(evt, 
+                "./OUTPUTS/evt_aoi_crop.tif", 
+                overwrite = T, format="GTiff", 
+                options=c('TFW=YES'), 
+                datatype = "INT2S")
+    evt_x <- evt %>%
+      raster::extract(shp) %>%
+      unlist() %>%
+      table(dnn = "ID") %>%
+      as.data.frame() %>%
+      arrange(desc(Freq)) %>%
+      mutate_all(as.character) %>%
+      mutate_all(as.integer) %>%
+      left_join(levels(evt)[[1]], by = "ID") %>%
+      transmute(VALUE = ID,
+                COUNT = Freq,
+                EVT_NAME = EVT_NAME,
+                EVT_FUEL_N = EVT_FUEL_N,
+                EVT_LF = EVT_LF,
+                EVT_PHYS = EVT_PHYS,
+                EVT_GP_N = EVT_GP_N,
+                EVT_ORDER = EVT_ORDER,
+                EVT_CLASS = EVT_CLASS,
+                EVT_SBCLS = EVT_SBCLS,
+                acres = (Freq * 900 / 4046.86), # Freq is count of 30x30m or 900m^2 pixels, convert to acres
+                hectare = (Freq * 900 / 10000),
+                rel_percent = (Freq / sum(Freq)) * 100,
+                RED = RED,
+                GREEN = GREEN,
+                BLUE = BLUE,
+                R = R,
+                G = G,
+                B = B                )
+    write.csv(evt_x, "./OUTPUTS/evt_aoi_attributes.csv")
+    write.dbf(evt_x, "./OUTPUTS/evt_aoi_crop.tif.vat.dbf")
+    
+    ## EVT color file for use in QGIS
+    EVTColorFile <- evt_x     %>%
+      add_column(z = 255)     %>%
+      dplyr::select(VALUE,
+                    R,
+                    G,
+                    B,
+                    z,
+                    EVT_NAME) 
+    
+    
+    write.table(EVTColorFile, file = "./OUTPUTS/EVTColorFile.txt", sep = ",",
+                row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+
+```{r evt bar, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10}
+evtname <- read.csv(file = "./OUTPUTS/evt_aoi_attributes.csv") %>%
+  group_by(EVT_NAME) %>%
+  summarize(acres = sum(acres),
+            hectare = sum(hectare),
+            rel_percent = sum(rel_percent)) %>%
+  arrange(desc(rel_percent)) %>%
+  top_n(n = 10, wt = rel_percent)
+
+# plot
+evtChart <-
+  ggplot(data = evtname, aes(x = EVT_NAME, y = rel_percent)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Top 10 Existing Vegetation Types for Hiawatha National Forest",
+    subtitle = "Represents dominant vegetation systems ca2016",
+    caption = "Represents ~85% of the landscape. There are 74 EVTs total. \nData from landfire.gov.",
+    x = "",
+    y = "Percent of landscape") +
+  scale_x_discrete(limits = rev(evtname$EVT_NAME)) +
+  coord_flip() +
+  theme_bw(base_size = 14)
+
+evtChart
+
+# save the plot
+ggsave( "./graphics/evtname_barplot.png", width = 12, height = 7)
+```
+
+
+
