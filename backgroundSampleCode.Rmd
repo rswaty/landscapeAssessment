@@ -43,6 +43,14 @@ PLUS there is an opportunity to take the code further, for example:
 * make maps in R so we don't have to in QGIS or ArcGIS pro.  For example make maps in LEAFLET (though these can be giant...may not be worth it, could be best to not be interactive at least as an option)
 * turn this in to an R/GIS/raster training tool
 
+# About these files, the GitHub and this document:
+
+* The DATA directory has recently downloaded LANDFIRE data and a shapefile
+* The OUTPUTS directory is where the processed geotiffs, charts and attribute tables would normally go
+* The EXAMPLES directory includes some outputs from previous runs of the code when LANDFIRE delivered ArcGIS grids.  Some of the examples do not have code below
+* Most code chunks set to NOT run
+* Please create new scripts when you try things 
+
 
 ## Some code examples
 
@@ -163,7 +171,8 @@ This is older code for ESRI grids.
 
 ```
 
-
+<br>
+The following code makes a chart like the one found at: https://rswaty.github.io/HiawathaNF2022/presentationMay2022.html#5 
 
 ```{r bps bar, eval=F, echo=T, fig.width=10}
 # read bps attribute table .csv and summarize
@@ -256,6 +265,10 @@ ggsave("./graphics/bpsChart.png", width = 12, height = 7)
                 row.names = FALSE, col.names = FALSE, quote = FALSE)
 ```
 
+<br>
+
+This code makes a chart like the one found at: https://rswaty.github.io/HiawathaNF2022/presentationMay2022.html#8
+
 
 ```{r evt bar, eval=F, echo=T, fig.width=10}
 evtname <- read.csv(file = "./OUTPUTS/evt_aoi_attributes.csv") %>%
@@ -345,7 +358,9 @@ ggsave( "./graphics/evtname_barplot.png", width = 12, height = 7)
 
 ```
 
-# BpS x EVC ??
+# BpS x EVC 
+
+To make a chart like the one found at https://rswaty.github.io/HiawathaNF2022/presentationMay2022.html#19
 
 ```{r bpsXevc, eval=F, echo=T} 
 # read bps and evt rasters
@@ -419,3 +434,6 @@ ggplot(repeats, aes(x = cover, y = bps)) +
 
 ggsave("./graphics/bps_evc_plot.png", width = 12, height = 6)
 ```
+
+
+

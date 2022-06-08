@@ -1,0 +1,30 @@
+1639,232,189,255,255,Laurentian-Acadian Alkaline Conifer-Hardwood Swamp
+1614,76,230,0,255,Laurentian-Acadian Northern Hardwoods Forest-Hemlock
+1637,106,0,138,255,Boreal Acidic Peatland Systems
+1620,255,140,140,255,Boreal Jack Pine-Black Spruce Forest-Pine Barrens
+1624,110,137,70,255,Boreal White Spruce-Fir-Hardwood Forest-Coastal
+1625,208,255,99,255,Laurentian-Acadian Pine-Hemlock-Hardwood Forest
+1623,147,194,114,255,Boreal White Spruce-Fir-Hardwood Forest-Inland
+1615,76,230,150,255,Laurentian-Acadian Northern Hardwoods Forest-Hemlock
+1622,255,191,191,255,Laurentian-Acadian Northern Pine(-Oak) Forest
+11,0,0,255,255,Open Water
+1628,153,66,0,255,Laurentian Pine-Oak Barrens
+1633,69,69,156,255,Eastern Boreal Floodplain
+1621,135,200,114,255,Boreal Jack Pine-Black Spruce Forest-Spruce-Fir
+1636,122,143,245,255,Laurentian-Acadian Floodplain Systems
+1629,153,66,100,255,Laurentian Pine-Oak Barrens-Jack Pine
+1584,122,245,202,255,Great Lakes Coastal Marsh Systems
+1640,122,245,202,255,Great Lakes Coastal Marsh Systems
+1583,232,189,255,255,Laurentian-Acadian Alkaline Conifer-Hardwood Swamp
+1581,106,0,138,255,Boreal Acidic Peatland Systems
+2726,255,167,127,255,Laurentian-Acadian Northern Pine(-Oak) Forest-Pine Dominated
+1562,76,230,150,255,Laurentian-Acadian Northern Hardwoods Forest-Hemlock
+1561,76,230,0,255,Laurentian-Acadian Northern Hardwoods Forest-Hemlock
+1641,0,168,107,255,Laurentian-Acadian Shrub-Herbaceous Wetland Systems
+1578,181,0,0,255,Great Lakes Wooded Dune and Swale
+31,191,191,191,255,Barren-Rock/Sand/Clay
+1569,208,255,99,255,Laurentian-Acadian Pine-Hemlock-Hardwood Forest
+1575,214,0,157,255,North-Central Interior Sand and Gravel Tallgrass Prairie
+1573,153,66,100,255,Laurentian Pine-Oak Barrens-Jack Pine
+1576,232,255,196,255,Central Tallgrass Prairie
+1616,38,105,0,255,Laurentian-Acadian Northern Hardwoods Forest-Northern Sugar Maple-Basswood
