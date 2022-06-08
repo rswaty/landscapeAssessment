@@ -40,7 +40,7 @@ PLUS there is an opportunity to take the code further, for example:
 
 * could make a package
 * add landscape metrics
-* make maps in R so we don't have to in QGIS or ArcGIS pro
+* make maps in R so we don't have to in QGIS or ArcGIS pro.  For example make maps in LEAFLET (though these can be giant...may not be worth it, could be best to not be interactive at least as an option)
 * turn this in to an R/GIS/raster training tool
 
 
@@ -104,7 +104,7 @@ This is older code for ESRI grids.
 ## BpS
 
 
-```{r bps spatial, message=FALSE, warning=FALSE, include=FALSE}
+```{r bps spatial, eval=F, echo=T} 
 # process BpS 
     bps <- raster("./DATA/US_200BPS/us_200bps/hdr.adf") %>%
       crop(shp) %>%
@@ -165,7 +165,7 @@ This is older code for ESRI grids.
 
 
 
-```{r bps bar, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10}
+```{r bps bar, eval=F, echo=T, fig.width=10}
 # read bps attribute table .csv and summarize
 bpsname <- read.csv(file = "./OUTPUTS/bps_aoi_attributes.csv") %>%
   group_by(BPS_NAME) %>%
@@ -200,7 +200,7 @@ ggsave("./graphics/bpsChart.png", width = 12, height = 7)
 ## EVT
 
 
-```{r evt spatial, message=FALSE, warning=FALSE, include=FALSE}
+```{r evt spatial, eval=F, echo=T} 
 # EVT
     evt <- raster("./DATA/US_200EVT/us_200evt/hdr.adf") %>%
       crop(shp) %>%
@@ -257,7 +257,7 @@ ggsave("./graphics/bpsChart.png", width = 12, height = 7)
 ```
 
 
-```{r evt bar, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10}
+```{r evt bar, eval=F, echo=T, fig.width=10}
 evtname <- read.csv(file = "./OUTPUTS/evt_aoi_attributes.csv") %>%
   group_by(EVT_NAME) %>%
   summarize(acres = sum(acres),
@@ -287,4 +287,135 @@ ggsave( "./graphics/evtname_barplot.png", width = 12, height = 7)
 ```
 
 
+# SCLASS
 
+
+```{r sclass spatial, eval=F, echo=T} 
+# SCLASS
+  
+
+    sclass <- raster("./DATA/US_200SCLASS/us_200sclass/hdr.adf") %>%
+      crop(shp) %>%
+      mask(shp)
+    writeRaster(sclass, 
+                "./OUTPUTS/sclass_aoi_crop.tif", 
+                overwrite = T, 
+                format="GTiff", 
+                options=c('TFW=YES'), 
+                datatype = "INT2S")
+
+    sclass_x <- sclass %>%
+      raster::extract(shp) %>%
+      unlist() %>%
+      table(dnn = "ID") %>%
+      as.data.frame() %>%
+      arrange(desc(Freq)) %>%
+      mutate_all(as.character) %>%
+      mutate_all(as.integer) %>%
+      left_join(levels(sclass)[[1]], by = "ID") %>%
+      transmute(VALUE = ID,
+                COUNT = Freq,
+                LABEL = LABEL,
+                acres = (Freq * 900 / 4046.86), # Freq is count of 30x30m or 900m^2 pixels, convert to acres
+                hectare = (Freq * 900 / 10000),
+                rel_percent = (Freq / sum(Freq)) * 100,
+                RED = RED,
+                GREEN = GREEN,
+                BLUE = BLUE,
+                R = R,
+                G = G,
+                B = B)
+    
+    write.csv(sclass_x, "./OUTPUTS/sclass_aoi_attributes.csv")
+    write.dbf(sclass_x, "./OUTPUTS/sclass_aoi_crop.tif.vat.dbf")
+    
+    ## SCLASS color file for use in QGIS
+    SCLASSColorFile <- sclass_x     %>%
+      add_column(z = 255)     %>%
+      dplyr::select(VALUE,
+                    R,
+                    G,
+                    B,
+                    z,
+                    LABEL) 
+    
+    
+    write.table(SCLASSColorFile, file = "./OUTPUTS/SCLASSColorFile.txt", sep = ",",
+                row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+```
+
+# BpS x EVC ??
+
+```{r bpsXevc, eval=F, echo=T} 
+# read bps and evt rasters
+bps_r <- raster("./OUTPUTS/bps_aoi_crop.tif")
+evc_r <- raster("./OUTPUTS/evc_aoi_crop.tif")
+
+# edit the tables a little bit, mainly names
+bps_att <- read.csv(file = "./OUTPUTS/bps_aoi_attributes.csv") %>%
+  dplyr::select(VALUE, BPS_NAME, acres) %>%
+  rename(BPS_ID = VALUE, bps_acres = acres) 
+
+evc_att <- read.csv(file = "./OUTPUTS/evc_aoi_attributes.csv") %>%
+  dplyr::select(VALUE, CLASSNAMES, acres) %>%
+ rename(EVC_ID = VALUE) 
+
+# combine rasters
+bps2evc <- stack(bps_r, evc_r) %>%
+  getValues() %>%
+  as.data.frame() %>%
+  plyr::count() %>%
+  rename(BPS_ID = bps_aoi_crop, EVC_ID = evc_aoi_crop) %>%
+  mutate(acres = round((freq * 900 / 4046.8564224))) %>%
+  left_join(bps_att) %>%
+  left_join(evc_att, by = "EVC_ID") %>%
+  drop_na()
+
+
+write.csv(bps2evc, "./OUTPUTS/bps2evc.csv")
+```
+
+```{r ridgeline, eval=F, echo=T} 
+
+###  ridgeline chart
+pacman::p_load(tidyverse, ggridges)
+
+### load data
+bps_evc<- read_csv("OUTPUTS/forRidge.csv")
+View(bps_evc)
+
+### format data
+repeats <- bps_evc[rep(seq(nrow(bps_evc)), bps_evc$percent),]
+
+
+### make chart
+
+
+ggplot(repeats, aes(x = cover, y = bps)) +
+  geom_density_ridges(aes(fill = bps), scale = 0.9, size = 0.5) +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  labs(
+    title = "Smoothed Tree Canopy Cover per Ecosystem",
+    caption = "Data from LANDFIRE",
+    x = "Canopy Cover Percentage",
+    y = "" ) + 
+  scale_fill_manual(values = c("#7570b3", #swamp 
+                               "#d95f02", #barrens
+                               "#1b9e77" )) +
+  annotate(
+    geom = "curve", x = 58, y = 3.7, xend = 68, yend = 3.85, 
+    curvature = -.3, arrow = arrow(length = unit(2, "mm")) ) +
+  annotate(geom = "text", x = 30, y = 3.7, label = "~46% of Northern Hardwoods have \nbetween 70-80% canopy cover", hjust = "left") + 
+  annotate(
+    geom = "curve", x = 60, y = 2.6, xend = 54, yend = 2.6, 
+    curvature = .3, arrow = arrow(length = unit(2, "mm")) ) +
+  annotate(geom = "text", x = 92, y = 2.5, label = "~30% of The Jack Pine-Black Spruce \nForest-Pine Barrens have \nbetween 50-60% canopy cover", hjust = "right") + 
+  annotate(
+    geom = "curve", x = 51, y = 1.7, xend = 58, yend = 1.85, 
+    curvature = -.3, arrow = arrow(length = unit(2, "mm")) ) +
+  annotate(geom = "text", x = 24, y = 1.55, label = "~45% of Alkaline Conifer-Hardwood have \nbetween 60-70% canopy cover", hjust = "left")
+
+ggsave("./graphics/bps_evc_plot.png", width = 12, height = 6)
+```
