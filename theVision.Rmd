@@ -1,0 +1,55 @@
+---
+title: "Vision for R code and LANDFIRE"
+author: "Randy Swaty and Kori Blankenship"
+date: '2022-07-01'
+output: html_document
+---
+
+
+## General notes
+
+* versioning with packages, LF (both yearly updates and changes in attributes) it might be best to have individuals create code that can be shared...it's public, but it's not a "proper thing".  For example, I might make some code that I use and post to the repository, but it's not a "tool", may not be fullly annotated, etc.  
+* we basically have a github repo with a "collection of code", a sandbox.
+* community driven, but maybe Kori and Randy "curate" to some extent
+* do we promote?  or just share when asked?
+* try to have minimum reproducible example with data, code and output
+* give people a "leg up on the code", grassroots
+* spitting out initial results would be valuable---then would need to inspect that manually.  Note that in code.
+
+* consuming vs. building vs. inspecting data
+
+## Measures of success
+
+* people share code
+* someone uses the code
+
+
+## To do
+
+* ask Lee Davis about his code.  Can we link to it in an r-markdown/html file?  Do this with other resources we don't host
+* reinvite folks
+* start a best practices READ ME
+    *  are there examples on the web?
+* Get some code posted...e.g. charts, showing what is possible
+* Invite others to help curate
+* Ask Mary Kelly to think about organization
+* set up a meeting in late September
+* redo repo and announce that
+
+## Goals for the code
+
+1. read in LF tifs
+2. mask and crop tifs
+3. build attribute tables
+4. write clipped rasters
+5. build a color file for mapping in QGIS
+6. do combines of BPS and SCLS, BPS and EVT, BPS-EVC-EVT-EVC-SCLS
+7. bring in refcon table and sclass labels (e.g., "mid-dev open")
+8. graph current vs reference 
+9. build a better EVT legend (e.g., group all developed types together)
+10. some sort of QAQC--the basics at least plus notation in code to encourage
+
+### Dream goals
+
+1. make maps in R
+2. spit out slides with charts and maps
