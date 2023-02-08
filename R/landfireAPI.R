@@ -1,7 +1,7 @@
 #' LANDFIRE API from R
 #'
 #' @description
-#' `landfireApi` calls the LANDFIRE REST API directly from R
+#' `landfireAPI` calls the LANDFIRE REST API directly from R
 #'
 #' @param products Product names as character vector (see: https://lfps.usgs.gov/helpdocs/productstable.html)
 #' @param aoi Area of interest as character or numeric vector ordered xmin, ymin, xmax, ymax
@@ -23,10 +23,10 @@
 #' projection <- 6414
 #' resolution <- 90
 #' save_file <- tempfile(fileext = ".zip")
-#' test <- landfireApi(products, aoi, projection, resolution, path = save_file, max_time = 540)
+#' test <- landfireAPI(products, aoi, projection, resolution, path = save_file, max_time = 540)
 #' }
 
-landfireApi <- function(products, aoi, projection, resolution, edit_rule = NULL, edit_mask = NULL, path, max_time = 600, method = "curl") {
+landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL, edit_mask = NULL, path, max_time = 600, method = "curl") {
   
   #### Checks
   # Missing
