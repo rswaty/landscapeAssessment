@@ -1,19 +1,25 @@
-#' LANDFIRE API from R
+#' Call the LANDFIRE Product Service (LFPS) API
 #'
 #' @description
 #' `landfireAPI` calls the LANDFIRE REST API directly from R
 #'
-#' @param products Product names as character vector (see: https://lfps.usgs.gov/helpdocs/productstable.html)
-#' @param aoi Area of interest as character or numeric vector ordered xmin, ymin, xmax, ymax
-#' @param projection Single numeric value of the EPSG code for preferred output projection
-#' @param resolution Single numeric value specifying the preferred resolution in meters
-#' @param edit_rule Optional **Not currently functional**
-#' @param edit_mask Optional **Not currently functional**
-#' @param path Path to .zip directory which is passed to `utils::download.file()`. A temporary file is created if path is `NULL`.
-#' @param max_time Maximum time, in seconds, to wait for job to be completed
-#' @param method Passed to `utils::download.file()` see `?download.file`
+#' @param products Product names as character vector 
+#'   (see: https://lfps.usgs.gov/helpdocs/productstable.html)
+#' @param aoi Area of interest as character or numeric vector defined by 
+#'   latitude and longitude in decimal degrees in WGS84 and ordered 
+#'   xmin, ymin, xmax, ymax or a LANDFIRE map zone.
+#' @param projection Optional. A numeric value of the WKID for the output projection
+#'    Default is a localized Albers projection.
+#' @param resolution Optional. A numeric value between 31-9999 specifying the 
+#'   resample resolution in meters. Default is 30m.
+#' @param edit_rule Optional. **Not currently functional**
+#' @param edit_mask Optional. **Not currently functional**
+#' @param path Path to .zip directory. Passed to `utils::download.file()`.
+#'   If NULL, a temporary directory is created.
+#' @param max_time Maximum time, in seconds, to wait for job to be completed.
+#' @param method Passed to `utils::download.file()`. See `?download.file`
 #'
-#' @return Returns API call passed from httr::get(). Writes files to specified path.
+#' @return Returns API call passed from httr::get(). Downloads files to `path`
 #' @export
 #'
 #' @examples
@@ -26,15 +32,16 @@
 #' test <- landfireAPI(products, aoi, projection, resolution, path = save_file, max_time = 540)
 #' }
 
-landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL, edit_mask = NULL, path, max_time = 600, method = "curl") {
+landfireAPI <- function(products, aoi, projection = NULL, resolution = NULL, 
+                        edit_rule = NULL, edit_mask = NULL, path = NULL, 
+                        max_time = 1000, method = "curl") {
   
   #### Checks
   # Missing
   stopifnot("argument `products` is missing with no default" != !missing(products))
   stopifnot("argument `aoi` is missing with no default" != !missing(aoi))
-  stopifnot("argument `projection` is missing with no default" != !missing(projection))
   
-  if(missing(path)){
+  if(is.null(path)){
     path = tempfile(fileext = ".zip")
     warning("`path` is missing. Files will be saved in temp directory:", path)
   }
@@ -63,7 +70,8 @@ landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL,
   url <- httr::build_url(base_url)
   r <- httr::GET(url)
   job_id <- stringr::str_extract(r$url, ".{33}$") #NOTE: Assumes that job id length is always 33 characters
-  dwl_url <- paste0("https://lfps.usgs.gov/arcgis/rest/directories/arcgisjobs/landfireproductservice_gpserver/", job_id, "/scratch/", job_id, ".zip")
+  dwl_url <- paste0("https://lfps.usgs.gov/arcgis/rest/directories/arcgisjobs/landfireproductservice_gpserver/", 
+                    job_id, "/scratch/", job_id, ".zip")
   
   # Loop through up to max time
   mt <- max_time/5
@@ -86,7 +94,7 @@ landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL,
     if(status != 200 | grepl("Failed",job_status)) {
       cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
           "\n-------------------",
-          "\nElapsed time: ", i * 5, "s", "(Max time:", max_time, "s)",
+          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
           "\n-------------------")
       
       break
@@ -95,7 +103,7 @@ landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL,
     } else if(grepl("Succeeded",job_status)) {
       cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"), "\n",
           "\n-------------------",
-          "\nElapsed time: ", i * 5, "s", "(Max time:", max_time, "s)",
+          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
           "\n-------------------\n\n")
       
       utils::download.file(dwl_url, path, method = method)
@@ -105,10 +113,10 @@ landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL,
     } else {
       cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
           "\n-------------------",
-          "\nElapsed time: ", i * 5, "s", "(Max time:", max_time, "s)",
+          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
           "\n-------------------")
       
-      Sys.sleep(5)
+      Sys.sleep(0.1)
     }
     
     # Max time error
@@ -124,5 +132,4 @@ landfireAPI <- function(products, aoi, projection, resolution, edit_rule = NULL,
 }
 
 #TODO Get edit_rule and edit_mask running
-#TODO Overwrite the console output so it is easier to read
-#TODO Add input checks and any necessary errors/warnings 
+#TODO Overwrite the console instead of clearing
