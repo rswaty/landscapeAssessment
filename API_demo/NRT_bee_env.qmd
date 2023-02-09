@@ -1,0 +1,266 @@
+---
+title: "LANDFIRE API Demo"
+format: gfm
+editor: visual
+---
+
+### Load Packages
+
+```{r load_pkgs}
+if (!require(pacman)) install.packages('pacman')
+library(pacman)
+
+pacman::p_load(purrr, dplyr, tidyr, 
+               terra, sf, rgbif, 
+               cluster, tmap)
+
+source("../R/landfireAPI.R")
+```
+
+## Basic functionality
+
+### Calls the LANDFIRE Product Service (LFPS) API from R
+
+#### Parameter arguments
+
+##### **Product list:**
+
+-   `products` Product names as character vector (see: <https://lfps.usgs.gov/helpdocs/productstable.html>)
+
+##### **Area of interest**
+
+-   `aoi` Area of interest as character or numeric vector defined by latitude and longitude in decimal degrees in WGS84, ordered `xmin`, `ymin`, `xmax`, `ymax` or a LANDFIRE map zone.
+
+##### **Output Projection**
+
+-   `projection` Optional. A numeric value of the WKID for the output projection. Default is a localized Albers projection.
+
+##### **Resample Resolution**
+
+-   `resolution` Optional. A numeric value between 31-9999 specifying the resample resolution in meters. Default is 30m.
+
+##### **Edit Rule**
+
+-   `edit_rule` *Optional.* **Not currently functional**
+
+##### **Edit Mask**
+
+-   `edit_mask` *Optional.* **Not currently functional**
+
+------------------------------------------------------------------------
+
+#### R only arguments
+
+-   `path` Path to .zip directory. Passed to `utils::download.file()`. If `NULL`, a temporary directory is created.
+
+-   `max_time` Maximum time, in seconds, to wait for job to be completed
+
+-   `method` Passed to `utils::download.file()`. See `?download.file`
+
+Returns API call passed from httr::get(). Downloads files to `path`
+
+### Example
+
+Ask for three products for an area Northern California projected to NAD83(2011) / California Albers and resampled to 90m resolution.
+
+Products:
+
+-   220CC_22 - Forest Canopy Cover 2022
+-   ELEV2020 - Elevation
+-   220VCC - Vegetation Condition Class
+
+```{r basic_example}
+products <-  c("220CC_22", "ELEV2020", "220VCC")
+aoi <- c("-123.7835", "41.7534", "-123.6352", "41.8042")
+projection <- 6414
+resolution <- 90
+save_file <- tempfile(fileext = ".zip")
+
+ncal <- landfireAPI(products, aoi, projection, resolution, 
+                    path = save_file, max_time = 1000)
+```
+
+### Failed Call
+
+```{r Failed_call}
+projection <- 00001 #Not a WKID
+
+ncal <- landfireAPI(products, aoi, projection, resolution, 
+                    path = save_file, max_time = 1000)
+```
+
+### Exceed `max_time`
+
+```{r max_time_error}
+#| error: true
+
+projection <- 6414
+
+ncal <- landfireAPI(products, aoi, projection, resolution, 
+                    path = save_file, max_time = 10)
+```
+
+```{r rm_files}
+#| echo: false
+#| ouput: false
+
+zips <- list.files(tempdir(), pattern = ".zip", full.names = TRUE)
+unlink(zips)
+```
+
+## Automated processes and reports
+
+### Schedule a script
+
+```{r schedule}
+#| eval: false
+library(taskscheduleR)
+taskscheduler_create(taskname = "bee_env", rscript = "/path/to/script.R",
+                     schedule = "DAILY")
+```
+
+### Data
+
+I'll use use bee observation records here but in theory a similar concept could be anything (e.g., FIRMS thermal anomalies)
+
+### Obtain recent records
+
+You could set the script to programatically check for new data from the day before with a script by running:
+
+`date <- format.Date(seq(Sys.Date(), length = 2, by = "-1 day")[2], "%Y-%m-%d")`
+
+Or if using another API this functionality may be baked in:
+
+I assigned a specific date below because I know there are records on that day.
+
+```{r records}
+key <- name_backbone(name = "Apis mellifera")$usageKey
+date <- "2023-01-08"
+
+records <- occ_search(taxonKey = key, eventDate = date, stateProvince = "Arizona",
+           hasCoordinate = TRUE, limit = 5)
+
+head(records$data[,2:4])
+```
+
+### Process records
+
+Simplify the records and project the data to a different CRS (UTM 12N):
+
+```{r}
+occ <- records$data %>% 
+  dplyr::select(species, eventDate, lat = decimalLatitude, 
+                lon = decimalLongitude) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = st_crs(4326)) %>% 
+  st_transform(crs = st_crs(32612))
+```
+
+To minimize the amount of data I need to download, I'll cluster the occurrence records by distance.
+
+```{r}
+dist <- st_distance(occ) %>% 
+  units::drop_units()
+
+dist
+```
+
+Four of the five bee records are within 150m of each other while one is nearly 25km away from all other points.
+
+I'll use hierarchical clustering to assign the values to groups.
+
+```{r}
+test <- agnes(dist, stand = FALSE, method = "complete")
+clust <- cutree(test, h = 10000) #height would need to be optimized.
+
+clust
+```
+
+As expected the points cluster into two distinct groups.
+
+Instead of downloading LANDFIRE data for each point we will create and area of interest for each cluster. That way we can make two different api calls to only download data near the locations of interest not the 25km of data in between.
+
+Note: the function `st_bbox` returns values in the correct order but they must be coerced into a vector to be used in `landfireAPI`.
+
+```{r}
+occ_split <- cbind(occ, clust) %>% 
+  split(clust)
+
+aoi <- purrr::map(occ_split, ~ st_buffer(.x, 100) %>% 
+                    st_transform(crs = st_crs(4326)) %>% 
+                    st_bbox() %>% 
+                    as.vector())
+
+aoi
+```
+
+### LANDFIRE
+
+#### API Download
+
+```{r}
+# Define parameters
+products <-  c("ASP2020", "ELEV2020", "SLPP2020")
+projection <- 32612
+resolution <- 90
+
+# Create a path for each cluster
+save_dirs <- list()
+for (i in 1:length(aoi)) {
+  save_dirs[[i]] <- tempfile(pattern = paste0(i, "_"), fileext = ".zip")
+}
+
+# Call landfire twice
+api_call <- purrr::map2(aoi, save_dirs, 
+                        ~ landfireAPI(products, aoi = .x, projection, resolution,
+                                      path = .y)
+                        )
+
+api_call[[1]]
+```
+
+#### Load in LANDFIRE data
+
+```{r load_LANDFIRE}
+# Unzip the downloaded files
+zip_files <- list.files(tempdir(), pattern = ".zip", full.names = TRUE)
+
+ext_dirs <- list()
+for (i in 1:length(aoi)) {
+  ext_dirs[[i]] <- paste0(tempdir(), "/clust", i)
+  filesstrings::create_dir(ext_dirs[[i]])
+}
+
+purrr::map2(zip_files, ext_dirs, ~ unzip(.x, exdir = .y))
+
+# Load files as rasters
+r <- purrr::map(ext_dirs, ~ list.files(.x, pattern = ".tif$",
+                                              full.names = TRUE) %>% 
+                  terra::rast())
+
+r
+```
+
+#### Extract ENV
+
+Now we could do anything we might normally want to do with LANDFIRE data, create maps and reports, or as an extremely basic example, extract the values of certain variables of interest at each location where a bee was observed.
+
+```{r extract_env}
+occ_vect <- purrr::map(occ_split, ~ terra::vect(.x))
+extract <- purrr::map2(occ_vect, r, ~ terra::extract(.y, .x) %>% 
+                         cbind(.x, .) %>% 
+                         as.data.frame(row.names = FALSE))
+
+df <- dplyr::bind_rows(extract)
+
+df
+```
+
+#### Append to csv
+
+Since a similar script could be automated, we can then append the values to `.csv` file for future processing.
+
+```{r append}
+write.table(df, file = "./bee_env_data.csv", sep = ",", 
+            row.names = FALSE, col.names = FALSE,
+            append = TRUE)
+```
