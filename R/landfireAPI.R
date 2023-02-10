@@ -89,33 +89,25 @@ landfireAPI <- function(products, aoi, projection = NULL, resolution = NULL,
     
     # There is a better way to do this but for now...
     cat("\014") # clear console each loop
+    
+    cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
+        "\n-------------------",
+        "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
+        "\n-------------------\n")
   
     # If failed exit and report
     if(status != 200 | grepl("Failed",job_status)) {
-      cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
-          "\n-------------------",
-          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
-          "\n-------------------")
-      
+      stop(job_status)
       break
     
       # If success report success and download file
     } else if(grepl("Succeeded",job_status)) {
-      cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"), "\n",
-          "\n-------------------",
-          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
-          "\n-------------------\n\n")
-      
+      cat("Downloading files:\n")
       utils::download.file(dwl_url, path, method = method)
       break
       
       # Print current status, wait, and check again
     } else {
-      cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
-          "\n-------------------",
-          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
-          "\n-------------------")
-      
       Sys.sleep(0.1)
     }
     
