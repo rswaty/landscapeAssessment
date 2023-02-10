@@ -18,6 +18,7 @@
 #'   If NULL, a temporary directory is created.
 #' @param max_time Maximum time, in seconds, to wait for job to be completed.
 #' @param method Passed to `utils::download.file()`. See `?download.file`
+#' @param verbose If FALSE suppress all status messages
 #'
 #' @return Returns API call passed from httr::get(). Downloads files to `path`
 #' @export
@@ -34,7 +35,7 @@
 
 landfireAPI <- function(products, aoi, projection = NULL, resolution = NULL, 
                         edit_rule = NULL, edit_mask = NULL, path = NULL, 
-                        max_time = 1000, method = "curl") {
+                        max_time = 1000, method = "curl", verbose = TRUE) {
   
   #### Checks
   # Missing
@@ -55,6 +56,8 @@ landfireAPI <- function(products, aoi, projection = NULL, resolution = NULL,
     "`method` is invalid. See `?download.file`" =
       method %in% c("internal", "libcurl", "wget", "curl", "wininet", "auto")
   )
+  
+  stopifnot("argument `verbose` must be logical" = inherits(verbose, "logical"))
   
   #### End Checks
   
@@ -87,13 +90,15 @@ landfireAPI <- function(products, aoi, projection = NULL, resolution = NULL,
     job_status <- message[grep("Job Status", message)]
     inf_msg <- message[grep("esriJobMessageType", message)]
     
-    # There is a better way to do this but for now...
-    cat("\014") # clear console each loop
-    
-    cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
-        "\n-------------------",
-        "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
-        "\n-------------------\n")
+    if(verbose == TRUE) {
+      # There is a better way to do this but for now...
+      cat("\014") # clear console each loop
+      
+      cat(job_status,"\nJob Messages:\n",paste(inf_msg, collapse = "\n"),
+          "\n-------------------",
+          "\nElapsed time: ", i * 0.1, "s", "(Max time:", max_time, "s)",
+          "\n-------------------\n")
+    }
   
     # If failed exit and report
     if(status != 200 | grepl("Failed",job_status)) {
@@ -102,8 +107,7 @@ landfireAPI <- function(products, aoi, projection = NULL, resolution = NULL,
     
       # If success report success and download file
     } else if(grepl("Succeeded",job_status)) {
-      cat("Downloading files:\n")
-      utils::download.file(dwl_url, path, method = method)
+      utils::download.file(dwl_url, path, method = method, quiet = !verbose)
       break
       
       # Print current status, wait, and check again
